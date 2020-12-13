@@ -45,7 +45,7 @@ fn handle_dir(in_dir: PathBuf, out_dir: PathBuf, format: &str, anonymizer: &mut 
 
             let (anonymized, number) = anonymizer.anonymize(&fs::read_to_string(path)?);
             let mut out_path = out_dir.clone();
-            out_path.push(PathBuf::from(format!("{}-{}.log.json", format, number)));
+            out_path.push(PathBuf::from(format!("battle-{}-{}.log.json", format, number)));
             fs::write(out_path, anonymized)?;
         }
     }

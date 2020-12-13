@@ -1,6 +1,7 @@
 /// Contains the core anonymization logic
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use regex::Regex;
 use lazy_static::*;
@@ -148,22 +149,10 @@ impl Anonymizer {
                     .replace(&p2_id, &p2_anon)
                 ));
             }
+            let p1regex = Regex::from_str(&["\\|p1[ab]?: (", &regex::escape(p1), "|", &regex::escape(&p1_id), ")"].join("")).unwrap();
+            let p2regex = Regex::from_str(&["\\|p2[ab]?: (", &regex::escape(p2), "|", &regex::escape(&p2_id), ")"].join("")).unwrap();
 
-            if log_part_string.starts_with("|-ability") || log_part_string.starts_with("|-side") {
-                let a = &["|p1: ", p1].join("");
-                let b = &["|p2: ", p2].join("");
-
-                return Some(json!(log_part_string
-                    .replace(a, &["|p1: ", &p1_anon].join(""))
-                    .replace(b, &["|p2: ", &p2_anon].join(""))
-                ));
-           }
-            //
-            // log_part_string.starts_with("|raw|") ||
-            // log_part_string.starts_with("|player|")
-
-
-            Some(log_part.clone())
+            return Some(json!(p2regex.replace_all(p1regex.replace_all(log_part_string, &p1_anon as &str).as_ref(), &p2_anon as &str)));
         }).collect::<Vec<serde_json::Value>>());
 
         self.current_battle_number += 1;
