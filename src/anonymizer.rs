@@ -27,7 +27,7 @@ impl PlayerTracker {
     fn new() -> PlayerTracker {
         PlayerTracker {
             players: HashMap::new(),
-            cur_player_number: 1,
+            cur_player_number: 0,
         }
     }
 
@@ -56,8 +56,8 @@ impl Anonymizer {
     pub fn new() -> Anonymizer {
         Anonymizer {
             players: PlayerTracker::new(),
-            current_battle_number: 1,
-            is_safe: true,
+            current_battle_number: 0,
+            is_safe: false,
         }
     }
 
