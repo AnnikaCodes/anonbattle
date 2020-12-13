@@ -1,0 +1,18 @@
+[package]
+name = "anonbattle"
+version = "0.1.0"
+authors = ["Annika L. <annika0uwu@gmail.com>"]
+license = "Apache-2.0"
+description = " program to anonymize Pokémon Showdown battle logs"
+edition = "2018"
+categories = ["command-line-utilities"]
+homepage = "https://github.com/AnnikaCodes/anonbattle"
+repository = "https://github.com/AnnikaCodes/anonbattle"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lazy_static = "1.4.0"
+regex = "1.4.2"
+serde_json = "1.0.60"
+structopt = "0.3.21"
