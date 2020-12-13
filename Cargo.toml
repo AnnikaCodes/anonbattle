@@ -1,6 +1,6 @@
 [package]
 name = "anonbattle"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Annika L. <annika0uwu@gmail.com>"]
 license = "Apache-2.0"
 description = " program to anonymize Pokémon Showdown battle logs"

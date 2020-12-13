@@ -31,7 +31,7 @@ fn handle_dir(in_dir: PathBuf, out_dir: PathBuf, format: &str, anonymizer: &mut 
     for entry in fs::read_dir(in_dir)? {
         let path = entry?.path();
         if path.is_dir() {
-            let dir_name = path.to_str().unwrap();
+            let dir_name = path.file_name().unwrap().to_str().unwrap();
             if dir_name.starts_with("gen") && dir_name != format {
                 // It's for a different format
                 continue;
