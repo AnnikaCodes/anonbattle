@@ -158,12 +158,11 @@ impl Anonymizer {
         self.current_battle_number += 1;
         let result = serde_json::to_string(&json_result).unwrap();
 
-        if self.is_safe && (
-            result.contains(p1) || result.contains(&p1_id) ||
-            result.contains(p2) || result.contains(&p2_id)
-        ) {
-            println!("{} {}", result, json["roomid"]);
-            panic!("Failure");
+        if result.contains(p1) || result.contains(&p1_id) || result.contains(p2) || result.contains(&p2_id) {
+            println!("{}", json["roomid"]);
+            if self.is_safe {
+                panic!("Failure");
+            }
         }
 
         (result, self.current_battle_number)
