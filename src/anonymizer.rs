@@ -8,6 +8,31 @@ use lazy_static::*;
 
 use serde_json::{Value, json};
 
+#[derive(Debug)]
+pub enum AnonymizationError {
+    JSON(serde_json::Error),
+    Regex(regex::Error),
+    String(String),
+}
+
+impl From<String> for AnonymizationError {
+    fn from(str: String) -> AnonymizationError {
+        AnonymizationError::String(str)
+    }
+}
+
+impl From<serde_json::Error> for AnonymizationError {
+    fn from(err: serde_json::Error) -> AnonymizationError {
+        AnonymizationError::JSON(err)
+    }
+}
+
+impl From<regex::Error> for AnonymizationError {
+    fn from(err: regex::Error) -> AnonymizationError {
+        AnonymizationError::Regex(err)
+    }
+}
+
 lazy_static! {
     static ref ID_REGEX: Regex = Regex::new(r"[^A-Za-z0-9]").unwrap();
     static ref INPUTLOG_ANONYMIZER_REGEX: Regex = Regex::new(r#"name":".*","#).unwrap();
@@ -64,11 +89,11 @@ impl Anonymizer {
     /// Anonymizes a log.
     ///
     /// Returns a tuple: (json, battle_number)
-    pub fn anonymize(&mut self, raw: &str) -> (String, u32) {
-        let json: serde_json::Map<String, Value> = serde_json::from_str(raw).unwrap();
+    pub fn anonymize(&mut self, raw: &str) -> Result<(String, u32), AnonymizationError> {
+        let json: serde_json::Map<String, Value> = serde_json::from_str(raw)?;
 
-        let p1 = json["p1"].as_str().unwrap();
-        let p2 = json["p2"].as_str().unwrap();
+        let p1 = json["p1"].as_str().ok_or(format!("Bad JSON for p1 {}", json["p1"]))?;
+        let p2 = json["p2"].as_str().ok_or(format!("Bad JSON for p2 {}", json["p2"]))?;
         let p1_id = to_id(p1);
         let p2_id = to_id(p2);
 
@@ -79,7 +104,11 @@ impl Anonymizer {
         // Anonnymize
         json_result["p1"] = Value::String(p1_anon.clone());
         json_result["p2"] = Value::String(p2_anon.clone());
-        json_result["winner"] = Value::String(self.players.anonymize(json["winner"].as_str().unwrap().to_owned()));
+        json_result["winner"] = Value::String(self.players.anonymize(json["winner"]
+            .as_str()
+            .ok_or(format!("Bad JSON for winner {}", json["winner"]))?
+            .to_owned()
+        ));
 
         json_result["p1rating"] = Value::Null;
         json_result["p2rating"] = Value::Null;
@@ -88,7 +117,7 @@ impl Anonymizer {
         // "Sat Nov 21 2020 17:05:04 GMT-0500 (Eastern Standard Time)" -> "Sat Nov 21 2020 17"
         let mut timestamp = json["timestamp"]
             .as_str()
-            .unwrap()
+            .ok_or(format!("Bad JSON for timestamp {}", json["timestamp"]))?
             .split(':')
             .collect::<Vec<&str>>()[0]
             .to_owned();
@@ -97,10 +126,14 @@ impl Anonymizer {
         json_result["timestamp"] = json!(timestamp);
 
 
-        let il = json["inputLog"].as_array().unwrap().iter();
+        let il = json["inputLog"]
+            .as_array()
+            .ok_or(format!("Bad JSON for inputlog {}", json["inputLog"]))?
+            .iter();
         json_result["inputLog"] = serde_json::json!(il.filter_map(|inputlog_part| {
-            let inputlog_part_string: &str = inputlog_part.as_str().unwrap();
-
+            let inputlog_part_string: &str = inputlog_part
+                .as_str()
+                .unwrap();
             if inputlog_part_string.starts_with(">player p1") {
                 let res = INPUTLOG_ANONYMIZER_REGEX.replace_all(inputlog_part_string, |_: &regex::Captures| {
                     format!("\"name\":\"{}\",", p1_anon)
@@ -118,9 +151,19 @@ impl Anonymizer {
             Some(inputlog_part.clone())
         }).collect::<Vec<serde_json::Value>>());
 
-        let log = json["log"].as_array().unwrap().iter();
+        let log = json["log"]
+            .as_array()
+            .ok_or(format!("Bad JSON for log {}", json["log"]))?
+            .iter();
+
+        let p1regex = Regex::from_str(&["\\|p1[ab]?: (", &regex::escape(p1), "|", &regex::escape(&p1_id), ")"].join(""))?;
+        let p2regex = Regex::from_str(&["\\|p2[ab]?: (", &regex::escape(p2), "|", &regex::escape(&p2_id), ")"].join(""))?;
+
         json_result["log"] = serde_json::json!(log.filter_map(|log_part| {
-            let log_part_string: &str = log_part.as_str().unwrap();
+            let log_part_string: &str = &match log_part.as_str() {
+                Some(a) => a.to_owned(),
+                None => format!("Bad JSON for logpart {:#?}", log_part)
+            };
 
             // Remove chat and timers (privacy threat)
             if log_part_string.starts_with("|c|") || log_part_string.starts_with("|c:|") || log_part_string.starts_with("|inactive|") {
@@ -149,14 +192,12 @@ impl Anonymizer {
                     .replace(&p2_id, &p2_anon)
                 ));
             }
-            let p1regex = Regex::from_str(&["\\|p1[ab]?: (", &regex::escape(p1), "|", &regex::escape(&p1_id), ")"].join("")).unwrap();
-            let p2regex = Regex::from_str(&["\\|p2[ab]?: (", &regex::escape(p2), "|", &regex::escape(&p2_id), ")"].join("")).unwrap();
 
             return Some(json!(p2regex.replace_all(p1regex.replace_all(log_part_string, &p1_anon as &str).as_ref(), &p2_anon as &str)));
         }).collect::<Vec<serde_json::Value>>());
 
         self.current_battle_number += 1;
-        let result = serde_json::to_string(&json_result).unwrap();
+        let result = serde_json::to_string(&json_result)?;
 
         if result.contains(p1) || result.contains(&p1_id) || result.contains(p2) || result.contains(&p2_id) {
             println!("{}", json["roomid"]);
@@ -165,6 +206,6 @@ impl Anonymizer {
             }
         }
 
-        (result, self.current_battle_number)
+        Ok((result, self.current_battle_number))
     }
 }

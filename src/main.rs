@@ -31,7 +31,19 @@ fn handle_dir(in_dir: PathBuf, out_dir: PathBuf, format: &str, anonymizer: &mut 
     for entry in fs::read_dir(in_dir)? {
         let path = entry?.path();
         if path.is_dir() {
-            let dir_name = path.file_name().unwrap().to_str().unwrap();
+            let dir_name = match path.file_name() {
+                Some(a) => match a.to_str() {
+                    Some(b) => b,
+                    None => {
+                        println!("bad filename: {:#?}", a);
+                        continue;
+                    }
+                },
+                None => {
+                    println!("bad path: {:#?}", path);
+                    continue;
+                }
+            };
             if dir_name.starts_with("gen") && dir_name != format {
                 // It's for a different format
                 continue;
@@ -39,11 +51,26 @@ fn handle_dir(in_dir: PathBuf, out_dir: PathBuf, format: &str, anonymizer: &mut 
             handle_dir(path, out_dir.clone(), format, anonymizer)?;
         } else {
             // sanity check uwu
-            if !path.to_str().unwrap().contains(format) {
+            let path_str = match path.to_str() {
+                Some(a) => a,
+                None => {
+                    println!("bad path: {:#?}", path);
+                    continue;
+                }
+            };
+
+            if !path_str.contains(format) {
                 continue;
             }
 
-            let (anonymized, number) = anonymizer.anonymize(&fs::read_to_string(path)?);
+            let (anonymized, number) = match anonymizer.anonymize(&fs::read_to_string(path.clone())?) {
+                Ok(tuple) => tuple,
+                Err(e) => {
+                    println!("Error with {}: {:#?}", path_str, e);
+                    continue;
+                }
+            };
+
             let mut out_path = out_dir.clone();
             out_path.push(PathBuf::from(format!("battle-{}-{}.log.json", format, number)));
             fs::write(out_path, anonymized)?;
@@ -59,7 +86,9 @@ fn main() -> std::io::Result<()> {
     fs::create_dir(options.output_dir.clone()).unwrap_or(());
 
     for dir in options.inputs {
-        handle_dir(dir, options.output_dir.clone(), &options.format, &mut anon).unwrap();
+        if let Err(e) = handle_dir(dir, options.output_dir.clone(), &options.format, &mut anon) {
+            println!("Error: {:#?}", e);
+        };
     }
 
     Ok(())
